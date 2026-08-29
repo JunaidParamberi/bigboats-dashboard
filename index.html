@@ -531,11 +531,11 @@
 <div class="toast" id="toast"></div>
 
 <script>
-  // ── WEBHOOK URLs ──
-  const WEBHOOKS = {
-    getConversations: 'https://hook.eu1.make.com/8ocj3cqmwseu7o45t2ujrfqh8a8bapxm',
-    sendReply:        'https://hook.eu1.make.com/t8ttjua44rl8emisa0fslfmk41ljqa3y',
-    takeOver:         'https://hook.eu1.make.com/8d9m3v5jrl9y23n6f5vrbstfi44kj9vo'
+  // ── API ROUTES (server-side proxy — no secrets in browser) ──
+  const API = {
+    conversations: '/api/conversations',
+    reply:         '/api/reply',
+    takeOver:      '/api/takeover'
   };
 
   const AVATAR_COLORS = ['#1DA462','#3D7EFF','#FF6B35','#9C27B0','#E67E22','#D44638'];
@@ -550,13 +550,17 @@
     document.getElementById('convo-list').innerHTML =
       '<div class="loading-state"><div class="spinner"></div><span>Loading...</span></div>';
     try {
-      const res = await fetch(WEBHOOKS.getConversations, { method: 'POST', body: '{}' });
-      const rows = await res.json();
+      const res = await fetch(API.conversations);
+      if (!res.ok) throw new Error(`Server error ${res.status}`);
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Unknown error');
+      const rows = Array.isArray(data.conversations) ? data.conversations : [];
       allConversations = groupByPhone(rows);
       renderList(allConversations);
     } catch (e) {
       document.getElementById('convo-list').innerHTML =
-        '<div class="empty-state"><div class="empty-icon">⚠️</div><span>Could not load conversations.<br>Check your Make.com scenario is active.</span></div>';
+        '<div class="empty-state"><div class="empty-icon">⚠️</div><span>Could not load conversations.<br>' +
+        escHtml(e.message || 'Check your Make.com scenario is active.') + '</span></div>';
     }
   }
 
@@ -692,14 +696,16 @@
     renderMessages();
     renderList(allConversations);
     try {
-      await fetch(WEBHOOKS.takeOver, {
+      const res = await fetch(API.takeOver, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ phone: currentConvo.phone, mode: newMode })
       });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) throw new Error(data.error || `Server error ${res.status}`);
       showToast(newMode === 'human' ? '🟠 You took over this chat' : '🤖 Sara is back on this chat');
     } catch(e) {
-      showToast('⚠️ Mode change failed — check Make.com');
+      showToast('⚠️ Mode change failed — ' + (e.message || 'check Make.com'));
     }
   }
 
@@ -726,14 +732,16 @@
     msgs.scrollTop = msgs.scrollHeight;
 
     try {
-      await fetch(WEBHOOKS.sendReply, {
+      const res = await fetch(API.reply, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ to: currentConvo.phone, message: text })
+        body: JSON.stringify({ phone: currentConvo.phone, message: text })
       });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) throw new Error(data.error || `Server error ${res.status}`);
       showToast('✓ Sent via WhatsApp');
     } catch(e) {
-      showToast('⚠️ Send failed — check Make.com');
+      showToast('⚠️ Send failed — ' + (e.message || 'check Make.com'));
     }
   }
 

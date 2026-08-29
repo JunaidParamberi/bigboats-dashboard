@@ -1,0 +1,10 @@
+# Environment secrets
+.env
+.env.local
+.env.*.local
+
+# Vercel
+.vercel
+
+# Node
+node_modules/
